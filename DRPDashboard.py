@@ -5,6 +5,7 @@ from pyvis.network import Network
 import streamlit.components.v1 as components
 import matplotlib.pyplot as plt
 import copy
+import json
 
 # --- 1. The Core Algorithm: Bucket-Based Dijkstra ---
 # This is our implementation of the "Breaking the Sorting Barrier" algorithm.
@@ -69,7 +70,7 @@ def find_shortest_path_bucket_dijkstra(graph, start_node, end_node, max_cost=100
 # --- 2. Streamlit Application Interface ---
 
 # Title of the Dashboard
-st.title("Network Optimization Dashboard")
+st.title("Animated Network Optimization Dashboard")
 
 # --- 3. Data Loading and Graph Creation ---
 
@@ -186,48 +187,10 @@ net.set_edge_smooth('dynamic')
 
 # Add nodes and edges to the network
 for node in filtered_G.nodes():
-    # Set default color to a vague gray
-    color = "#555555"
-    size = 15
-    
-    if node in path_1 and node in path_2:
-        color = "rgba(255, 165, 0, 1)" # Orange for nodes on both paths
-        size = 25
-    elif node in path_1:
-        color = "rgba(255, 0, 0, 1)" # Red for nodes on best path
-        size = 25
-    elif node in path_2:
-        color = "rgba(255, 165, 0, 1)" # Orange for nodes on second best path
-        size = 25
-    
-    if node == source_location:
-        color = "rgba(144, 238, 144, 1)"  # Light green for source
-        size = 35
-    elif node == destination_location:
-        color = "rgba(240, 128, 128, 1)"  # Light coral for destination
-        size = 35
-    
-    net.add_node(node, label=node, title=node, color=color, size=size)
+    net.add_node(node, label=node, title=node, color="#555555", size=15)
 
 for u, v, d in filtered_G.edges(data=True):
-    # Set default edge color to a vague gray
-    color = "rgba(128, 128, 128, 0.4)"
-    width = 1
-    
-    is_in_path_1 = (u, v) in zip(path_1, path_1[1:])
-    is_in_path_2 = (u, v) in zip(path_2, path_2[1:])
-    
-    if is_in_path_1 and is_in_path_2:
-        color = "rgba(255, 165, 0, 1)" # Orange for edges on both paths
-        width = 4
-    elif is_in_path_1:
-        color = "red" # Red for best path
-        width = 4
-    elif is_in_path_2:
-        color = "orange" # Orange for second best path
-        width = 3
-        
-    net.add_edge(u, v, value=d['weight'], title=f"Cost: {d['weight']}", color=color, width=width)
+    net.add_edge(u, v, value=d['weight'], title=f"Cost: {d['weight']}", color="rgba(128, 128, 128, 0.4)", width=1)
 
 # Disable physics for a stable, non-volatile graph
 net.set_options("""
@@ -258,7 +221,54 @@ var options = {
 net.save_graph('network.html')
 HtmlFile = open("network.html", 'r', encoding='utf-8')
 source_code = HtmlFile.read()
-components.html(source_code, height=600)
+
+# Add a script tag to the HTML to handle the animation
+# Pass the paths as JSON strings
+path_1_js = json.dumps(path_1)
+path_2_js = json.dumps(path_2)
+
+animation_script = f"""
+<script>
+    document.addEventListener('DOMContentLoaded', function() {{
+        var network = new vis.Network(document.getElementById('mynetwork'), data, options);
+        var path1 = {path_1_js};
+        var path2 = {path_2_js};
+
+        function animatePath(path, color, width) {{
+            if (!path || path.length < 2) return;
+            let currentStep = 0;
+            const interval = setInterval(() => {{
+                if (currentStep >= path.length - 1) {{
+                    clearInterval(interval);
+                    return;
+                }}
+                
+                const fromNode = path[currentStep];
+                const toNode = path[currentStep + 1];
+                
+                const edgeId = network.findEdge(fromNode, toNode);
+                if (edgeId.length > 0) {{
+                    const edgeData = {{id: edgeId[0], color: {{color: color}}, width: width}};
+                    network.body.data.edges.update([edgeData]);
+                }}
+                
+                const nodeData = {{id: fromNode, color: color, size: 25, label: ''}};
+                network.body.data.nodes.update([nodeData]);
+                
+                currentStep++;
+            }}, 500); // Animation speed in milliseconds
+        }}
+
+        animatePath(path1, "red", 4);
+        setTimeout(() => {{
+            animatePath(path2, "orange", 3);
+        }}, (path1.length) * 500); // Start the second animation after the first one finishes
+    }});
+</script>
+"""
+
+final_html = source_code.replace('</body>', f'{animation_script}</body>')
+components.html(final_html, height=600)
 
 # --- 6. Shortest Path and Cost Summary ---
 st.header("2. Shortest Path and Cost")
