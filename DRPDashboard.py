@@ -4,6 +4,7 @@ import networkx as nx
 from pyvis.network import Network
 import streamlit.components.v1 as components
 import matplotlib.pyplot as plt
+import copy
 
 # --- 1. The Core Algorithm: Bucket-Based Dijkstra ---
 # This is our implementation of the "Breaking the Sorting Barrier" algorithm.
@@ -139,12 +140,45 @@ for u, v, data in filtered_G.edges(data=True):
 
 # Shortest Path & Cost
 st.header("1. Interactive Network Graph")
-path, cost = find_shortest_path_bucket_dijkstra(
+
+# Calculate the best path
+path_1, cost_1 = find_shortest_path_bucket_dijkstra(
     graph_dict, 
     source_location, 
     destination_location, 
     max_cost=int(filtered_df['travel_cost'].max()) + 1000
 )
+
+# Calculate the second-best path
+path_2, cost_2 = [], float('inf')
+if cost_1 != float('inf'):
+    best_second_path_cost = float('inf')
+    best_second_path = []
+    
+    # Iterate through each edge in the best path
+    path_edges = list(zip(path_1, path_1[1:]))
+    
+    for u, v in path_edges:
+        # Temporarily remove this edge from the graph
+        temp_graph = copy.deepcopy(graph_dict)
+        if u in temp_graph and v in temp_graph[u]:
+            del temp_graph[u][v]
+            
+            # Recalculate the shortest path
+            temp_path, temp_cost = find_shortest_path_bucket_dijkstra(
+                temp_graph, 
+                source_location, 
+                destination_location,
+                max_cost=int(filtered_df['travel_cost'].max()) + 1000
+            )
+            
+            # If a new path is found and it's better than the current second-best
+            if temp_cost < best_second_path_cost:
+                best_second_path_cost = temp_cost
+                best_second_path = temp_path
+
+    path_2 = best_second_path
+    cost_2 = best_second_path_cost
 
 # Create a Pyvis network object
 net = Network(height="600px", width="100%", bgcolor="#222222", font_color="white", cdn_resources="in_line")
@@ -152,27 +186,46 @@ net.set_edge_smooth('dynamic')
 
 # Add nodes and edges to the network
 for node in filtered_G.nodes():
-    color = "rgba(135, 206, 235, 0.8)"
+    # Set default color to a vague gray
+    color = "#555555"
     size = 15
+    
+    if node in path_1 and node in path_2:
+        color = "rgba(255, 165, 0, 1)" # Orange for nodes on both paths
+        size = 25
+    elif node in path_1:
+        color = "rgba(255, 0, 0, 1)" # Red for nodes on best path
+        size = 25
+    elif node in path_2:
+        color = "rgba(255, 165, 0, 1)" # Orange for nodes on second best path
+        size = 25
+    
     if node == source_location:
-        color = "rgba(144, 238, 144, 1)"
+        color = "rgba(144, 238, 144, 1)"  # Light green for source
         size = 35
     elif node == destination_location:
-        color = "rgba(240, 128, 128, 1)"
+        color = "rgba(240, 128, 128, 1)"  # Light coral for destination
         size = 35
-    elif node in path:
-        size = 20
     
     net.add_node(node, label=node, title=node, color=color, size=size)
 
 for u, v, d in filtered_G.edges(data=True):
-    color = "gray"
+    # Set default edge color to a vague gray
+    color = "rgba(128, 128, 128, 0.4)"
     width = 1
-    is_in_path = (u, v) in zip(path, path[1:])
     
-    if is_in_path:
-        color = "red"
+    is_in_path_1 = (u, v) in zip(path_1, path_1[1:])
+    is_in_path_2 = (u, v) in zip(path_2, path_2[1:])
+    
+    if is_in_path_1 and is_in_path_2:
+        color = "rgba(255, 165, 0, 1)" # Orange for edges on both paths
         width = 4
+    elif is_in_path_1:
+        color = "red" # Red for best path
+        width = 4
+    elif is_in_path_2:
+        color = "orange" # Orange for second best path
+        width = 3
         
     net.add_edge(u, v, value=d['weight'], title=f"Cost: {d['weight']}", color=color, width=width)
 
@@ -209,11 +262,17 @@ components.html(source_code, height=600)
 
 # --- 6. Shortest Path and Cost Summary ---
 st.header("2. Shortest Path and Cost")
-if cost == float('inf'):
+if cost_1 == float('inf'):
     st.error("No path found between the selected locations with the current filter and scenario.")
 else:
-    st.success(f"Optimal Path Found! Total Cost: **{cost}**")
-    st.write("Path: " + " → ".join(path))
+    st.success(f"Optimal Path Found! Total Cost: **{cost_1}**")
+    st.write("Path: " + " → ".join(path_1))
+    
+    if cost_2 != float('inf') and path_2:
+        st.info(f"Second Best Path Found! Total Cost: **{cost_2}**")
+        st.write("Path: " + " → ".join(path_2))
+    else:
+        st.info("No second-best path was found.")
 
 # --- 7. Top Costly Routes (Bar Chart) ---
 st.header("3. Top Costly Routes")
@@ -224,8 +283,8 @@ st.bar_chart(costly_routes_df, x='route', y='travel_cost')
 # --- 8. Optimization Summary Table ---
 st.header("4. Optimization Summary Table")
 summary_data = {
-    "Metric": ["Shortest Path Cost", "Source Location", "Destination Location", "Current Scenario"],
-    "Value": [cost, source_location, destination_location, scenario]
+    "Metric": ["Shortest Path Cost", "Second Best Path Cost", "Source Location", "Destination Location", "Current Scenario"],
+    "Value": [cost_1, cost_2, source_location, destination_location, scenario]
 }
 summary_df = pd.DataFrame(summary_data)
 st.table(summary_df)
@@ -235,4 +294,3 @@ st.table(summary_df)
 # For now, it's a place to add a note or simple explanation.
 st.header("5. Scenario Comparison (Optional)")
 st.info("The selected scenario affects the network. You can change the scenario in the sidebar to see how the optimal route changes in real-time.")
-
