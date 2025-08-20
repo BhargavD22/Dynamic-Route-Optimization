@@ -1,7 +1,9 @@
 import streamlit as st
 import pandas as pd
 import networkx as nx
-import matplotlib.pyplot as plt
+# The pyvis library will create an interactive network graph
+from pyvis.network import Network
+import streamlit.components.v1 as components
 
 # --- 1. The Core Algorithm: Bucket-Based Dijkstra ---
 # This is our implementation of the "Breaking the Sorting Barrier" algorithm.
@@ -134,34 +136,73 @@ if uploaded_file:
                 st.success(f"Optimal Path Found! Total Cost: **{cost}**")
                 st.write("Path: " + " → ".join(path))
 
-                # --- 7. Visualization ---
+                # --- 7. Visualization with Pyvis ---
                 st.header("Network Visualization")
                 
-                # Get edge list for the shortest path
-                path_edges = list(zip(path, path[1:]))
-
-                # Create the plot
-                fig, ax = plt.subplots(figsize=(10, 8))
-                pos = nx.spring_layout(G, k=0.75, iterations=50) # Use a layout for better visualization
+                # Create a Pyvis network object
+                net = Network(height="600px", width="100%", bgcolor="#222222", font_color="white", cdn_resources="in_line")
+                net.set_edge_smooth('dynamic')
                 
-                # Draw all nodes and edges first
-                nx.draw_networkx_nodes(G, pos, node_color='skyblue', node_size=2000)
-                nx.draw_networkx_labels(G, pos, font_size=10, font_weight="bold")
-                nx.draw_networkx_edges(G, pos, edge_color='gray', arrows=True, arrowsize=20)
+                # Add nodes and edges from the NetworkX graph
+                for node in G.nodes():
+                    color = "skyblue"
+                    size = 15
+                    if node == start_node:
+                        color = "lightgreen"
+                        size = 30
+                    elif node == end_node:
+                        color = "lightcoral"
+                        size = 30
+                    elif node in path:
+                        size = 20
+                        
+                    net.add_node(node, label=node, title=node, color=color, size=size)
                 
-                # Draw shortest path edges and nodes
-                nx.draw_networkx_edges(G, pos, edgelist=path_edges, edge_color='red', width=2, arrows=True, arrowsize=20)
+                for u, v, d in G.edges(data=True):
+                    color = "gray"
+                    width = 1
+                    if (u, v) in zip(path, path[1:]) or (v, u) in zip(path, path[1:]):
+                        color = "red"
+                        width = 3
+                        
+                    net.add_edge(u, v, value=d['weight'], title=f"Cost: {d['weight']}", color=color, width=width)
                 
-                # Draw the nodes on the shortest path
-                nx.draw_networkx_nodes(G, pos, nodelist=path, node_color='lightcoral', node_size=2000)
+                # Set physics options for animation
+                net.set_options("""
+                var options = {
+                  "nodes": {
+                    "borderWidth": 2
+                  },
+                  "edges": {
+                    "arrows": {
+                      "to": {
+                        "enabled": true
+                      }
+                    },
+                    "color": {
+                      "inherit": false
+                    },
+                    "smooth": false
+                  },
+                  "physics": {
+                    "barnesHut": {
+                      "gravitationalConstant": -2000,
+                      "centralGravity": 0.3,
+                      "springLength": 100,
+                      "springConstant": 0.05
+                    },
+                    "minVelocity": 0.75
+                  }
+                }
+                """)
                 
-                # Add edge labels (weights)
-                edge_labels = nx.get_edge_attributes(G, 'weight')
-                nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=8)
+                # Save and display the network as an HTML file
+                net.save_graph('network.html')
                 
-                plt.title("Supply Chain Network with Optimal Route", fontsize=16)
-                plt.axis('off')
-                st.pyplot(fig)
+                # Display the HTML in Streamlit
+                HtmlFile = open("network.html", 'r', encoding='utf-8')
+                source_code = HtmlFile.read()
+                components.html(source_code, height=600)
                 
         except Exception as e:
             st.error(f"An error occurred: {e}. Please check your inputs and CSV file.")
