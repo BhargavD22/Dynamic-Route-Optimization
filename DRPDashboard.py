@@ -70,7 +70,7 @@ def find_shortest_path_bucket_dijkstra(graph, start_node, end_node, max_cost=100
 # --- 2. Streamlit Application Interface ---
 
 # Title of the Dashboard
-st.title("Animated Network Optimization Dashboard")
+st.title("Network Optimization Dashboard")
 
 # --- 3. Data Loading and Graph Creation ---
 
