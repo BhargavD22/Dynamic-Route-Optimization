@@ -181,94 +181,131 @@ if cost_1 != float('inf'):
     path_2 = best_second_path
     cost_2 = best_second_path_cost
 
-# Create a Pyvis network object
+# --- Generate the complete HTML and JavaScript for the graph ---
 net = Network(height="600px", width="100%", bgcolor="#222222", font_color="white", cdn_resources="in_line")
-net.set_edge_smooth('dynamic')
-
-# Add nodes and edges to the network
 for node in filtered_G.nodes():
     net.add_node(node, label=node, title=node, color="#555555", size=15)
-
 for u, v, d in filtered_G.edges(data=True):
     net.add_edge(u, v, value=d['weight'], title=f"Cost: {d['weight']}", color="rgba(128, 128, 128, 0.4)", width=1)
 
-# Disable physics for a stable, non-volatile graph
-net.set_options("""
-var options = {
-  "physics": {
-    "enabled": false
-  },
-  "interaction": {
-    "hover": true,
-    "tooltipDelay": 200,
-    "dragNodes": true,
-    "zoomView": true
-  },
-  "nodes": {
-    "font": { "color": "#eeeeee" },
-    "borderWidth": 2,
-    "shape": "dot"
-  },
-  "edges": {
-    "arrows": { "to": { "enabled": true } },
-    "color": { "inherit": false },
-    "smooth": { "enabled": true, "type": "dynamic" }
-  }
-}
-""")
+# Get the graph data as dictionaries
+nodes_list = net.nodes
+edges_list = net.edges
 
-# Save and display the network
-net.save_graph('network.html')
-HtmlFile = open("network.html", 'r', encoding='utf-8')
-source_code = HtmlFile.read()
-
-# Add a script tag to the HTML to handle the animation
-# Pass the paths as JSON strings
+# Pass the paths and data as JSON strings
 path_1_js = json.dumps(path_1)
 path_2_js = json.dumps(path_2)
+nodes_js = json.dumps(nodes_list)
+edges_js = json.dumps(edges_list)
 
-animation_script = f"""
-<script>
-    document.addEventListener('DOMContentLoaded', function() {{
+# Define the HTML and JavaScript content
+html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Network Visualization</title>
+    <script type="text/javascript" src="https://unpkg.com/vis-network@9.1.2/dist/vis-network.min.js"></script>
+    <style type="text/css">
+        body, html {{
+            margin: 0;
+            padding: 0;
+            background-color: #222222;
+        }}
+        #mynetwork {{
+            width: 100%;
+            height: 600px;
+            background-color: #222222;
+            border: 1px solid #444444;
+        }}
+    </style>
+</head>
+<body>
+    <div id="mynetwork"></div>
+    <script type="text/javascript">
+        // Create the graph data
+        var nodes = new vis.DataSet({nodes_js});
+        var edges = new vis.DataSet({edges_js});
+        var data = {{ nodes: nodes, edges: edges }};
+
+        // Set the options for a stable graph
+        var options = {{
+            "physics": {{
+                "enabled": false
+            }},
+            "interaction": {{
+                "hover": true,
+                "tooltipDelay": 200,
+                "dragNodes": true,
+                "zoomView": true
+            }},
+            "nodes": {{
+                "font": {{ "color": "#eeeeee" }},
+                "borderWidth": 2,
+                "shape": "dot"
+            }},
+            "edges": {{
+                "arrows": {{ "to": {{ "enabled": true }} }},
+                "color": {{ "inherit": false }},
+                "smooth": {{ "enabled": true, "type": "dynamic" }}
+            }}
+        }};
+
+        // Initialize the network
         var network = new vis.Network(document.getElementById('mynetwork'), data, options);
+
+        // Animation script
         var path1 = {path_1_js};
         var path2 = {path_2_js};
+        
+        // Find the specific edge ID by its source and destination node IDs
+        function findEdgeId(fromNode, toNode) {{
+            const edge = edges.get({{
+                filter: function (item) {{
+                    return item.from === fromNode && item.to === toNode;
+                }}
+            }});
+            return edge.length > 0 ? edge[0].id : null;
+        }}
 
-        function animatePath(path, color, width) {{
+        function animatePath(path, color, width, delay=500) {{
             if (!path || path.length < 2) return;
             let currentStep = 0;
             const interval = setInterval(() => {{
                 if (currentStep >= path.length - 1) {{
                     clearInterval(interval);
+                    // Reset final node size to make it more visually clear
+                    const finalNodeData = {{id: path[path.length - 1], color: color, size: 35}};
+                    nodes.update([finalNodeData]);
                     return;
                 }}
                 
                 const fromNode = path[currentStep];
                 const toNode = path[currentStep + 1];
                 
-                const edgeId = network.findEdge(fromNode, toNode);
-                if (edgeId.length > 0) {{
-                    const edgeData = {{id: edgeId[0], color: {{color: color}}, width: width}};
-                    network.body.data.edges.update([edgeData]);
+                const edgeId = findEdgeId(fromNode, toNode);
+                if (edgeId) {{
+                    edges.update([{{id: edgeId, color: {{color: color}}, width: width}}]);
                 }}
                 
-                const nodeData = {{id: fromNode, color: color, size: 25, label: ''}};
-                network.body.data.nodes.update([nodeData]);
+                // Animate the node
+                const nodeData = {{id: fromNode, color: color, size: 25}};
+                nodes.update([nodeData]);
                 
                 currentStep++;
-            }}, 500); // Animation speed in milliseconds
+            }}, delay);
         }}
-
+        
+        // Start the animations
         animatePath(path1, "red", 4);
         setTimeout(() => {{
-            animatePath(path2, "orange", 3);
-        }}, (path1.length) * 500); // Start the second animation after the first one finishes
-    }});
-</script>
+            animatePath(path2, "orange", 3, 400); // Second path is slightly faster
+        }}, path1.length * 500);
+        
+    </script>
+</body>
+</html>
 """
-
-final_html = source_code.replace('</body>', f'{animation_script}</body>')
-components.html(final_html, height=600)
+components.html(html_content, height=600)
 
 # --- 6. Shortest Path and Cost Summary ---
 st.header("2. Shortest Path and Cost")
