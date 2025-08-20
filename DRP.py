@@ -114,11 +114,11 @@ if uploaded_file:
 
     if disruption != "No Disruption":
         # Identify the edge to modify based on the disruption
-        if disruption == "Port Closure":
-            if "Port_X" in graph_dict and "Warehouse_1" in graph_dict["Port_X"]:
+        if "Port_X" in graph_dict and "Warehouse_1" in graph_dict["Port_X"]:
+            if disruption == "Port Closure":
                 graph_dict["Port_X"]["Warehouse_1"] = 1000 # Set a very high cost
-        elif disruption == "Major Highway Accident":
-            if "Warehouse_1" in graph_dict and "Store_B" in graph_dict["Warehouse_1"]:
+        if "Warehouse_1" in graph_dict and "Store_B" in graph_dict["Warehouse_1"]:
+            if disruption == "Major Highway Accident":
                 graph_dict["Warehouse_1"]["Store_B"] = 1000 # Set a very high cost
 
     # --- 6. Run the Algorithm and Display Results ---
@@ -141,37 +141,43 @@ if uploaded_file:
                 
                 # Create a Pyvis network object
                 net = Network(height="600px", width="100%", bgcolor="#222222", font_color="white", cdn_resources="in_line")
-                net.set_edge_smooth('dynamic')
                 
                 # Add nodes and edges from the NetworkX graph
                 for node in G.nodes():
-                    color = "skyblue"
+                    color = "rgba(135, 206, 235, 0.8)"  # Light sky blue
                     size = 15
                     if node == start_node:
-                        color = "lightgreen"
-                        size = 30
+                        color = "rgba(144, 238, 144, 1)"  # Light green
+                        size = 35
                     elif node == end_node:
-                        color = "lightcoral"
-                        size = 30
+                        color = "rgba(240, 128, 128, 1)"  # Light coral
+                        size = 35
                     elif node in path:
                         size = 20
                         
-                    net.add_node(node, label=node, title=node, color=color, size=size)
+                    net.add_node(node, label=node, title=node, color=color, size=size, physics=True)
                 
                 for u, v, d in G.edges(data=True):
                     color = "gray"
                     width = 1
-                    if (u, v) in zip(path, path[1:]) or (v, u) in zip(path, path[1:]):
+                    # Check if the edge is part of the shortest path
+                    is_in_path = (u, v) in zip(path, path[1:])
+                    
+                    if is_in_path:
                         color = "red"
-                        width = 3
+                        width = 4
                         
                     net.add_edge(u, v, value=d['weight'], title=f"Cost: {d['weight']}", color=color, width=width)
                 
-                # Set physics options for animation
+                # Set physics options for a more stable and pleasant animation
                 net.set_options("""
                 var options = {
                   "nodes": {
-                    "borderWidth": 2
+                    "font": {
+                      "color": "#eeeeee"
+                    },
+                    "borderWidth": 2,
+                    "shape": "dot"
                   },
                   "edges": {
                     "arrows": {
@@ -182,16 +188,28 @@ if uploaded_file:
                     "color": {
                       "inherit": false
                     },
-                    "smooth": false
+                    "smooth": {
+                      "enabled": true,
+                      "type": "dynamic"
+                    }
                   },
                   "physics": {
+                    "enabled": true,
                     "barnesHut": {
-                      "gravitationalConstant": -2000,
-                      "centralGravity": 0.3,
-                      "springLength": 100,
+                      "gravitationalConstant": -3000,
+                      "centralGravity": 0.4,
+                      "springLength": 120,
                       "springConstant": 0.05
                     },
-                    "minVelocity": 0.75
+                    "stabilization": {
+                      "enabled": true,
+                      "iterations": 1000,
+                      "updateInterval": 25
+                    }
+                  },
+                  "interaction": {
+                    "hover": true,
+                    "tooltipDelay": 200
                   }
                 }
                 """)
@@ -206,3 +224,4 @@ if uploaded_file:
                 
         except Exception as e:
             st.error(f"An error occurred: {e}. Please check your inputs and CSV file.")
+
