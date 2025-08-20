@@ -279,13 +279,13 @@ html_content = f"""
             return edge.length > 0 ? edge[0].id : null;
         }}
 
-        function animatePath(path, color, width, delay=500) {{
+        function animatePath(path, color, width, delay=500, pulseDuration=200) {{
             if (!path || path.length < 2) return;
             let currentStep = 0;
             const interval = setInterval(() => {{
                 if (currentStep >= path.length - 1) {{
                     clearInterval(interval);
-                    // Reset final node size to make it more visually clear
+                    // Final highlight for the last node
                     const finalNodeData = {{id: path[path.length - 1], color: color, size: 35}};
                     nodes.update([finalNodeData]);
                     return;
@@ -299,19 +299,23 @@ html_content = f"""
                     edges.update([{{id: edgeId, color: {{color: color}}, width: width}}]);
                 }}
                 
-                // Animate the node
-                const nodeData = {{id: fromNode, color: color, size: 25}};
-                nodes.update([nodeData]);
+                // Animate the node with a pulsing effect
+                const originalNodeSize = nodes.get(fromNode).size;
+                nodes.update([{{id: fromNode, color: color, size: 30}}]);
+                
+                setTimeout(() => {{
+                    nodes.update([{{id: fromNode, size: originalNodeSize}}]);
+                }}, pulseDuration);
                 
                 currentStep++;
             }}, delay);
         }}
         
         // Start the animations
-        animatePath(path1, "red", 4);
+        animatePath(path1, "red", 4, 700);
         setTimeout(() => {{
-            animatePath(path2, "orange", 3, 400); // Second path is slightly faster
-        }}, path1.length * 500);
+            animatePath(path2, "orange", 3, 600);
+        }}, path1.length * 700);
         
     </script>
 </body>
