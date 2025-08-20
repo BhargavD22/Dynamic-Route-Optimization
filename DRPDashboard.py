@@ -183,8 +183,20 @@ if cost_1 != float('inf'):
 
 # --- Generate the complete HTML and JavaScript for the graph ---
 net = Network(height="600px", width="100%", bgcolor="#222222", font_color="white", cdn_resources="in_line")
+
+# Use a networkx layout to get initial positions
+pos = nx.spring_layout(filtered_G)
+
 for node in filtered_G.nodes():
-    net.add_node(node, label=node, title=node, color="#555555", size=15)
+    net.add_node(node, 
+                 label=node, 
+                 title=node, 
+                 color="#555555", 
+                 size=15, 
+                 x=pos[node][0] * 1000, 
+                 y=pos[node][1] * 1000, 
+                 physics=False)
+
 for u, v, d in filtered_G.edges(data=True):
     net.add_edge(u, v, value=d['weight'], title=f"Cost: {d['weight']}", color="rgba(128, 128, 128, 0.4)", width=1)
 
