@@ -3,5 +3,4 @@ pandas
 networkx
 matplotlib
 pyvis
-copy
-json
+
